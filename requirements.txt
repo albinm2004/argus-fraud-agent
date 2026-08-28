@@ -1,0 +1,25 @@
+# Core
+python-dotenv==1.0.1
+pydantic==2.9.2
+
+# Razorpay + agent orchestration
+razorpay==1.4.2
+langgraph==0.2.39
+langchain-core==0.3.15
+
+# Graph
+neo4j==5.25.0
+
+# ML — baseline + upgrade path
+scikit-learn==1.5.2
+xgboost==2.1.1
+pandas==2.2.3
+numpy==1.26.4
+shap==0.46.0
+# torch + torch-geometric: install separately (platform-specific wheels), see README
+
+# Demo surface
+streamlit==1.39.0
+
+# Dev
+pytest==8.3.3
