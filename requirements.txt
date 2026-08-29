@@ -28,7 +28,10 @@ numpy>=1.26,<2.3  # pin loose on purpose: numpy 1.26.4 exact hits a known
 # base_score, and pred_contribs gives identical values without it.
 
 # Demo surface
-streamlit==1.39.0
+streamlit==1.62.0
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+httpx==0.28.1  # needed by fastapi.testclient.TestClient
 
 # Dev
 pytest==8.3.3

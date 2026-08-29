@@ -47,9 +47,7 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
 
 ## Testing
 
-`PYTHONPATH=. python -m pytest tests/ -v` — 11 tests covering webhook
-signature verification, event normalization, the TransactionID dtype
-regression (see Known limitations), and an end-to-end pipeline smoke test.
+`PYTHONPATH=. python -m pytest tests/ -v` — 17 tests covering webhook signature verification, event normalization, the TransactionID dtype regression and the giant-component graph regression (see Known limitations), an end-to-end pipeline smoke test, and the FastAPI webhook receiver (signature checks + a real scored response, via FastAPI's TestClient -- no server or network needed).
 
 ## Setup
 
@@ -70,6 +68,13 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
    the whole system work: signs a real Razorpay-shaped webhook, verifies
    it, runs it through the live LangGraph pipeline against a few held-out
    transactions, and prints the verdict + evidence chain for each.
+8. `PYTHONPATH=. uvicorn app.webhook_receiver:app --reload --port 8000` —
+   runs Argus as an actual HTTP service you could point Razorpay's real
+   webhook dashboard at (via ngrok for local testing). `GET /health` for
+   a liveness check; `POST /webhooks/razorpay` verifies the signature,
+   normalizes the event, and returns a real verdict for transactions in
+   the demo feature store (honest 202 for anything else — see the scope
+   note in `app/webhook_receiver.py`).
 
 ## Status (updated as the build progresses)
 
@@ -93,6 +98,12 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
       Razorpay-shaped webhook (Watcher), runs it through the actual
       LangGraph pipeline against held-out transactions, prints verdict +
       evidence + graph signal. This is the script used for the pitch demo.
+- [x] `app/webhook_receiver.py` — real FastAPI HTTP service (not a script),
+      deployable and boot-tested: `/health` liveness check, `POST
+      /webhooks/razorpay` runs signature verification -> normalization ->
+      pipeline exactly like production would, honest 202 for transactions
+      outside the demo feature store rather than a fabricated verdict.
+      5 tests in `tests/test_webhook_receiver.py`, all passing.
 - [x] Watcher agent — real Razorpay webhook signature verification (HMAC-SHA256)
       and event normalization against the documented payload shape. Honest
       limitation: Razorpay webhooks don't carry device/IP directly; `device_id`
