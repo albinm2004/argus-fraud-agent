@@ -12,6 +12,7 @@ neo4j==5.25.0
 
 # ML — baseline + upgrade path
 scikit-learn==1.5.2
+joblib==1.4.2
 xgboost==2.1.1
 pandas==2.2.3
 numpy==1.26.4

@@ -50,19 +50,42 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
 1. `cp .env.example .env` and fill in Razorpay test keys, Neo4j AuraDB
    credentials, and (optionally) your Kaggle API token.
 2. `pip install -r requirements.txt`
-3. Install PyTorch + PyTorch Geometric separately (platform-specific —
-   see https://pytorch.org/get-started/locally/ and
-   https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html)
-   only if/when the GNN upgrade is in scope.
-4. `python scripts/download_dataset.py` to pull the training data.
+3. Download IEEE-CIS Fraud Detection into `data/raw/ieee-fraud-detection/`
+   (join the competition at kaggle.com/c/ieee-fraud-detection first, it's
+   a one-click accept, then `kaggle competitions download -c ieee-fraud-detection`).
+4. `PYTHONPATH=. python scripts/train_baseline.py` — trains the baseline
+   Pattern Analyst, writes `models/pattern_analyst.joblib` and `docs/results.md`.
+5. `PYTHONPATH=. python scripts/red_team_attack.py` — runs the adversarial
+   evasion sweep, writes `docs/adversarial_results.md`.
+6. Install PyTorch + PyTorch Geometric separately (platform-specific —
+   see pytorch.org/get-started/locally and the PyTorch Geometric install
+   docs) only when the GNN upgrade is in scope.
 
-## Status
+## Status (updated as the build progresses)
 
-Early scaffold — see `docs/architecture.md` for the build plan and
-`docs/results.md` (once it exists) for the held-out metrics and the
-adversarial robustness delta.
+- [x] EDA over the full dataset — see `docs/eda_findings.md`
+- [x] Baseline Pattern Analyst trained and held out honestly — see `docs/results.md`
+      (precision 0.50, recall 0.47, ROC-AUC 0.91 on a time-based split)
+- [x] Adversarial red-team pass — see `docs/adversarial_results.md`
+      (~32% of caught fraud evades under realistic perturbation — the
+      finding that motivates hardening, reported honestly rather than hidden)
+- [ ] Graph Builder wired to a live Neo4j instance (currently: frequency-count
+      graph-proxy features, not a live graph — see `docs/eda_findings.md`)
+- [ ] Watcher agent wired to real Razorpay test-mode webhooks
+- [ ] Verdict + Audit evidence chain (SHAP-backed)
+- [ ] Adversarial-training hardening pass (re-measure the 32% gap after)
+- [ ] Streamlit demo surface
 
 ## Known limitations
 
-_(kept honest and updated as the build progresses — judging explicitly
-rewards naming these rather than hiding them)_
+- Only ~24% of transactions carry an identity/device record (`docs/eda_findings.md`) —
+  device-based signal is real but partial, not universal.
+- The Graph Builder is not yet live against Neo4j; the baseline currently
+  uses frequency-count proxies (`card1`/`addr1`/`card1+addr1`) for the same
+  signal, standing in until the real graph is wired up.
+- ~32% of correctly-caught fraud evades the baseline model under realistic
+  adversarial perturbation (`docs/adversarial_results.md`) — a known,
+  measured gap, not yet hardened against.
+- The operating threshold was chosen on the held-out set itself for
+  reporting; a production deployment would pick it on a separate
+  validation split.

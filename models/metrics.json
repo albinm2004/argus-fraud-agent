@@ -1,0 +1,11 @@
+{
+  "n_train": 472432,
+  "n_test_held_out": 118108,
+  "split_method": "time-based (last 20% by TransactionDT)",
+  "operating_threshold": 0.7920169830322266,
+  "precision": 0.5,
+  "recall": 0.468503937007874,
+  "f1": 0.483739837398374,
+  "roc_auc": 0.909826458618196,
+  "pr_auc": 0.5010723553623386
+}
