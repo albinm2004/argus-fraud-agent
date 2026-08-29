@@ -23,26 +23,42 @@ _neo4j_checked = False
 _neo4j_available = False
 
 
-# Addresses shared by more than this many transactions are excluded as
-# graph edges (not as features elsewhere). Empirically, addr1 alone
-# collapses ~99% of the dataset into one giant connected component past
-# a certain popularity (large fulfillment centers, shared defaults, etc.)
-# -- excluding just the top ~60 hub addresses roughly quintuples the
-# count of small, dense, ring-like components without losing the address
-# signal for the vast majority of (non-hub) addresses. This is an honest
-# tradeoff, not a full fix -- see docs/eda_findings.md.
+# Values shared by more than this many transactions are excluded as graph
+# edges (not as features elsewhere). Empirically, addr1 alone collapses
+# ~99% of the dataset into one giant connected component past a certain
+# popularity (large fulfillment centers, shared defaults, etc.) --
+# excluding just the top ~60 hub addresses roughly quintuples the count
+# of small, dense, ring-like components without losing the address
+# signal for the vast majority of (non-hub) addresses.
+#
+# card1 needs the same treatment, and at a much lower threshold: card1 is
+# far less concentrated than addr1 (13.5K unique values vs 332), but its
+# most popular values still have degree in the tens of thousands, and
+# even a 200-cap left a single giant component of ~280K transactions
+# (46% of the dataset) once card1 edges were added -- found by running
+# the graph through the real pipeline end-to-end and noticing a "ring"
+# evidence line citing 13,169 fraud neighbors, which is a collapsed
+# giant component, not a ring. Swept cap values against connected-
+# component sizes (see git history / dev notes) -- 50 is the highest
+# cap that fully eliminates components over 1,000 nodes while still
+# keeping ~8-9K small, ring-like (3-100 txn) components. This is an
+# honest tradeoff, not a full fix -- see docs/eda_findings.md.
 ADDR_HUB_CAP = 200
+CARD_HUB_CAP = 50
 
 
-def build_graph(df: pd.DataFrame, addr_hub_cap: int = ADDR_HUB_CAP) -> nx.Graph:
+def build_graph(df: pd.DataFrame, addr_hub_cap: int = ADDR_HUB_CAP,
+                 card_hub_cap: int = CARD_HUB_CAP) -> nx.Graph:
     addr_counts = df["addr1"].value_counts()
+    card_counts = df["card1"].value_counts()
     hub_addrs = set(addr_counts[addr_counts > addr_hub_cap].index)
+    hub_cards = set(card_counts[card_counts > card_hub_cap].index)
 
     G = nx.Graph()
     for row in df[["TransactionID", "card1", "addr1", "isFraud"]].itertuples(index=False):
         txn_node = f"txn:{row.TransactionID}"
         G.add_node(txn_node, kind="txn", is_fraud=bool(row.isFraud))
-        if pd.notna(row.card1):
+        if pd.notna(row.card1) and row.card1 not in hub_cards:
             G.add_edge(txn_node, f"card:{row.card1}")
         if pd.notna(row.addr1) and row.addr1 not in hub_addrs:
             G.add_edge(txn_node, f"addr:{row.addr1}")

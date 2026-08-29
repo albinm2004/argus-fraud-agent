@@ -13,6 +13,7 @@ class Settings:
     neo4j_uri: str = os.getenv("NEO4J_URI", "")
     neo4j_username: str = os.getenv("NEO4J_USERNAME", "neo4j")
     neo4j_password: str = os.getenv("NEO4J_PASSWORD", "")
+    neo4j_database: str = os.getenv("NEO4J_DATABASE", "")
 
 
 settings = Settings()

@@ -66,6 +66,10 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
 6. Install PyTorch + PyTorch Geometric separately (platform-specific —
    see pytorch.org/get-started/locally and the PyTorch Geometric install
    docs) only when the GNN upgrade is in scope.
+7. `PYTHONPATH=. python scripts/demo_replay.py` — the quickest way to see
+   the whole system work: signs a real Razorpay-shaped webhook, verifies
+   it, runs it through the live LangGraph pipeline against a few held-out
+   transactions, and prints the verdict + evidence chain for each.
 
 ## Status (updated as the build progresses)
 
@@ -80,9 +84,15 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
       see that doc's known limitations. Hardened model is now the default
       `agents/pattern_analyst.py` loads.)
 - [x] Graph Builder — real graph (networkx locally, tries live Neo4j AuraDB
-      first and falls back automatically). Ring-like components found: 7,473
-      (3-100 txns each) after excluding ~60 hub addresses that otherwise
-      collapse the graph into one giant component — see `docs/eda_findings.md`.
+      first and falls back automatically). Excludes ~60 hub addresses AND
+      ~430 hub cards (found via end-to-end pipeline testing, not just unit
+      tests — see `docs/architecture.md`) that otherwise collapse the graph
+      into one giant component. Ring-like components found: 8,772 (3-100
+      txns each), zero components over 1,000 nodes.
+- [x] `scripts/demo_replay.py` — end-to-end demo: signs and verifies a real
+      Razorpay-shaped webhook (Watcher), runs it through the actual
+      LangGraph pipeline against held-out transactions, prints verdict +
+      evidence + graph signal. This is the script used for the pitch demo.
 - [x] Watcher agent — real Razorpay webhook signature verification (HMAC-SHA256)
       and event normalization against the documented payload shape. Honest
       limitation: Razorpay webhooks don't carry device/IP directly; `device_id`
@@ -125,6 +135,13 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
   (`3459499.0`), which broke every graph lookup until caught by testing
   the pipeline end-to-end, not just each agent in isolation. Regression
   test added (`tests/test_graph_builder.py`) so it can't come back quietly.
+- Found and fixed the same way (`scripts/demo_replay.py`, real webhook
+  through the real pipeline): the local graph excluded hub *addresses*
+  but not hub *cards*, so a popular card1 value collapsed 46% of the
+  dataset into one giant "ring" -- a demoed transaction's evidence cited
+  13,169 fraud neighbors, which is population noise, not a ring. Fixed by
+  capping card1 the same way (`CARD_HUB_CAP` in `agents/graph_builder.py`);
+  the local graph now has zero components over 1,000 nodes.
 - The Watcher agent's real-time signature verification and event
   normalization are unit-tested and correct, but the gap between a raw
   webhook payload and the full 60-feature vector the model expects (C1-C14
