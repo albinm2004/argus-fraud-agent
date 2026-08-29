@@ -114,6 +114,10 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
       that exact version; rerun `scripts/smoke_test_integrations.py` after
       `pip install --upgrade -r requirements.txt` to confirm.
 
+## Pitch video
+
+`docs/pitch_script.md` -- a 5-minute script mapped to what's actually in this repo (real numbers, the demo command, the two bugs caught during end-to-end testing). Draft, adjust to your own voice, then record.
+
 ## Known limitations
 
 - Only ~24% of transactions carry an identity/device record (`docs/eda_findings.md`) —
