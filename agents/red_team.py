@@ -6,9 +6,15 @@ the same single-transaction perturbation search so the Verdict Agent can
 optionally report a per-transaction robustness note, not just the
 aggregate offline number.
 
-Result so far (see docs/adversarial_results.md): ~32% of correctly-flagged
-fraud evades detection under realistic amount/velocity perturbation.
-Adversarial-training hardening is the planned next step, not yet built.
+Baseline result (docs/adversarial_results.md): ~32% of correctly-flagged
+fraud evaded detection under realistic amount/velocity perturbation.
+
+Hardening result (docs/hardening_results.md): after adversarial-training
+hardening on this exact perturbation family, evasion dropped to 0% on a
+fixed held-out sample, at a roughly 0.3pt recall cost. This module now
+loads the hardened model by default when it exists. The 0% figure is
+scoped to this attack family (see hardening doc's known limitations) --
+not a claim of general robustness.
 """
 from pathlib import Path
 
@@ -17,14 +23,17 @@ import numpy as np
 
 from agents.features import PERTURBABLE_COLS
 
-_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "pattern_analyst.joblib"
+_MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+_HARDENED_PATH = _MODELS_DIR / "pattern_analyst_hardened.joblib"
+_BASELINE_PATH = _MODELS_DIR / "pattern_analyst.joblib"
 _bundle = None
 
 
 def _load():
     global _bundle
     if _bundle is None:
-        _bundle = joblib.load(_MODEL_PATH)
+        active_path = _HARDENED_PATH if _HARDENED_PATH.exists() else _BASELINE_PATH
+        _bundle = joblib.load(active_path)
     return _bundle
 
 

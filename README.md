@@ -67,13 +67,16 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
 - [x] Baseline Pattern Analyst trained and held out honestly — see `docs/results.md`
       (precision 0.50, recall 0.47, ROC-AUC 0.91 on a time-based split)
 - [x] Adversarial red-team pass — see `docs/adversarial_results.md`
-      (~32% of caught fraud evades under realistic perturbation — the
-      finding that motivates hardening, reported honestly rather than hidden)
+      (~32% of caught fraud evaded under realistic perturbation on the baseline model)
+- [x] Adversarial-training hardening pass — see `docs/hardening_results.md`
+      (evasion dropped from 32.8% to 0.0% on a fixed held-out sample, for a
+      ~0.3pt recall cost; scoped to this attack family, not general robustness —
+      see that doc's known limitations. Hardened model is now the default
+      `agents/pattern_analyst.py` loads.)
 - [ ] Graph Builder wired to a live Neo4j instance (currently: frequency-count
       graph-proxy features, not a live graph — see `docs/eda_findings.md`)
 - [ ] Watcher agent wired to real Razorpay test-mode webhooks
 - [ ] Verdict + Audit evidence chain (SHAP-backed)
-- [ ] Adversarial-training hardening pass (re-measure the 32% gap after)
 - [ ] Streamlit demo surface
 
 ## Known limitations
@@ -83,9 +86,10 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
 - The Graph Builder is not yet live against Neo4j; the baseline currently
   uses frequency-count proxies (`card1`/`addr1`/`card1+addr1`) for the same
   signal, standing in until the real graph is wired up.
-- ~32% of correctly-caught fraud evades the baseline model under realistic
-  adversarial perturbation (`docs/adversarial_results.md`) — a known,
-  measured gap, not yet hardened against.
+- ~32% of correctly-caught fraud evaded the *baseline* model under realistic
+  adversarial perturbation (`docs/adversarial_results.md`); the hardened
+  model (now default) closed that to 0% on the same attack family, but
+  that is not a general robustness guarantee — see `docs/hardening_results.md`.
 - The operating threshold was chosen on the held-out set itself for
   reporting; a production deployment would pick it on a separate
   validation split.

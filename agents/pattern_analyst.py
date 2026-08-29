@@ -12,18 +12,23 @@ from pathlib import Path
 
 import joblib
 
-_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "pattern_analyst.joblib"
+_MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+_HARDENED_PATH = _MODELS_DIR / "pattern_analyst_hardened.joblib"
+_BASELINE_PATH = _MODELS_DIR / "pattern_analyst.joblib"
 _bundle = None
+_active_path = None
 
 
 def _load():
-    global _bundle
+    global _bundle, _active_path
     if _bundle is None:
-        if not _MODEL_PATH.exists():
+        _active_path = _HARDENED_PATH if _HARDENED_PATH.exists() else _BASELINE_PATH
+        if not _active_path.exists():
             raise FileNotFoundError(
-                f"No trained model at {_MODEL_PATH}. Run scripts/train_baseline.py first."
+                f"No trained model in {_MODELS_DIR}. Run scripts/train_baseline.py first "
+                "(and scripts/adversarial_harden.py for the hardened version)."
             )
-        _bundle = joblib.load(_MODEL_PATH)
+        _bundle = joblib.load(_active_path)
     return _bundle
 
 
