@@ -17,6 +17,7 @@ data/processed/*
 
 # Neo4j / notebooks
 .ipynb_checkpoints/
+.pytest_cache/
 *.dump
 
 # OS / IDE

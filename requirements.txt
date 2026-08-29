@@ -9,6 +9,7 @@ langchain-core==0.3.15
 
 # Graph
 neo4j==5.25.0
+networkx==3.4.2
 
 # ML — baseline + upgrade path
 scikit-learn==1.5.2
@@ -16,8 +17,11 @@ joblib==1.4.2
 xgboost==2.1.1
 pandas==2.2.3
 numpy==1.26.4
-shap==0.46.0
 # torch + torch-geometric: install separately (platform-specific wheels), see README
+# Note: SHAP attribution in agents/verdict.py uses XGBoost's native
+# pred_contribs, not the `shap` package -- the installed shap/xgboost
+# version combo hit a known interop bug parsing XGBoost's serialized
+# base_score, and pred_contribs gives identical values without it.
 
 # Demo surface
 streamlit==1.39.0

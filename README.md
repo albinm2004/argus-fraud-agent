@@ -45,6 +45,12 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
   pipeline works against the real required tech stack, independent of
   where the training labels came from.
 
+## Testing
+
+`PYTHONPATH=. python -m pytest tests/ -v` — 11 tests covering webhook
+signature verification, event normalization, the TransactionID dtype
+regression (see Known limitations), and an end-to-end pipeline smoke test.
+
 ## Setup
 
 1. `cp .env.example .env` and fill in Razorpay test keys, Neo4j AuraDB
@@ -73,11 +79,24 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
       ~0.3pt recall cost; scoped to this attack family, not general robustness —
       see that doc's known limitations. Hardened model is now the default
       `agents/pattern_analyst.py` loads.)
-- [ ] Graph Builder wired to a live Neo4j instance (currently: frequency-count
-      graph-proxy features, not a live graph — see `docs/eda_findings.md`)
-- [ ] Watcher agent wired to real Razorpay test-mode webhooks
-- [ ] Verdict + Audit evidence chain (SHAP-backed)
-- [ ] Streamlit demo surface
+- [x] Graph Builder — real graph (networkx locally, tries live Neo4j AuraDB
+      first and falls back automatically). Ring-like components found: 7,473
+      (3-100 txns each) after excluding ~60 hub addresses that otherwise
+      collapse the graph into one giant component — see `docs/eda_findings.md`.
+- [x] Watcher agent — real Razorpay webhook signature verification (HMAC-SHA256)
+      and event normalization against the documented payload shape. Honest
+      limitation: Razorpay webhooks don't carry device/IP directly; `device_id`
+      is only populated if the checkout flow passes one through `notes`.
+- [x] Verdict + Audit evidence chain — real per-feature attribution via
+      XGBoost's native SHAP (`pred_contribs`), not a hand-described note.
+      Logs every verdict to `data/processed/audit_log.jsonl`.
+- [x] Streamlit demo surface (`app/dashboard.py`) — transaction feed +
+      full evidence chain per transaction, boot-tested and working.
+- [ ] Live Neo4j / Razorpay connectivity verified — both are unreachable from
+      this sandboxed dev environment (confirmed: Razorpay blocked by network
+      policy, Neo4j blocked by egress allowlist). Run
+      `scripts/smoke_test_integrations.py` from a normal terminal with real
+      internet access to confirm before relying on the live paths.
 
 ## Known limitations
 
@@ -93,3 +112,15 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
 - The operating threshold was chosen on the held-out set itself for
   reporting; a production deployment would pick it on a separate
   validation split.
+- Found and fixed during pipeline wiring: pulling a single row out of a
+  mixed-dtype DataFrame silently upcasts `TransactionID` to float
+  (`3459499.0`), which broke every graph lookup until caught by testing
+  the pipeline end-to-end, not just each agent in isolation. Regression
+  test added (`tests/test_graph_builder.py`) so it can't come back quietly.
+- The Watcher agent's real-time signature verification and event
+  normalization are unit-tested and correct, but the gap between a raw
+  webhook payload and the full 60-feature vector the model expects (C1-C14
+  velocity signals, graph-proxy frequencies, etc.) is NOT solved -- that
+  needs a live feature store built from transaction history, which is out
+  of scope for this build. Documented in `agents/pipeline.py` rather than
+  hidden behind a fake mapping.
