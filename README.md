@@ -92,19 +92,27 @@ regression (see Known limitations), and an end-to-end pipeline smoke test.
       Logs every verdict to `data/processed/audit_log.jsonl`.
 - [x] Streamlit demo surface (`app/dashboard.py`) — transaction feed +
       full evidence chain per transaction, boot-tested and working.
-- [ ] Live Neo4j / Razorpay connectivity verified — both are unreachable from
-      this sandboxed dev environment (confirmed: Razorpay blocked by network
-      policy, Neo4j blocked by egress allowlist). Run
-      `scripts/smoke_test_integrations.py` from a normal terminal with real
-      internet access to confirm before relying on the live paths.
+- [x] Razorpay connectivity verified live — `scripts/smoke_test_integrations.py`
+      run from a real terminal with internet access confirms auth works
+      against the test-mode key.
+- [ ] Live Neo4j connectivity verified — blocked so far by an environment
+      bug, not a code bug: installing from `requirements.txt` on Windows/
+      Python 3.13 could downgrade numpy to an exact version that hits a
+      known `OverflowError` in numpy's longdouble handling the moment
+      `neo4j` imports numpy, before a connection is even attempted. Pin
+      loosened in `requirements.txt` (`numpy>=1.26,<2.3`) to avoid forcing
+      that exact version; rerun `scripts/smoke_test_integrations.py` after
+      `pip install --upgrade -r requirements.txt` to confirm.
 
 ## Known limitations
 
 - Only ~24% of transactions carry an identity/device record (`docs/eda_findings.md`) —
   device-based signal is real but partial, not universal.
-- The Graph Builder is not yet live against Neo4j; the baseline currently
-  uses frequency-count proxies (`card1`/`addr1`/`card1+addr1`) for the same
-  signal, standing in until the real graph is wired up.
+- The Graph Builder's live Neo4j path (`agents/graph_builder_neo4j.py`) is
+  written and unit-tested for the key-normalization bug, but not yet
+  confirmed against a live AuraDB connection from a real network (see
+  Status above) — it automatically falls back to the local networkx graph
+  (built from the same frequency-count signal) if Neo4j isn't reachable.
 - ~32% of correctly-caught fraud evaded the *baseline* model under realistic
   adversarial perturbation (`docs/adversarial_results.md`); the hardened
   model (now default) closed that to 0% on the same attack family, but

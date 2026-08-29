@@ -16,7 +16,11 @@ scikit-learn==1.5.2
 joblib==1.4.2
 xgboost==2.1.1
 pandas==2.2.3
-numpy==1.26.4
+numpy>=1.26,<2.3  # pin loose on purpose: numpy 1.26.4 exact hits a known
+# Windows/Python 3.13 longdouble OverflowError in numpy.core.getlimits when
+# neo4j imports it; numpy>=2.0 also matches opencv-python's own floor if you
+# have that installed. If you still hit the OverflowError, run:
+#   pip install "numpy>=2.0,<2.3" --upgrade
 # torch + torch-geometric: install separately (platform-specific wheels), see README
 # Note: SHAP attribution in agents/verdict.py uses XGBoost's native
 # pred_contribs, not the `shap` package -- the installed shap/xgboost
