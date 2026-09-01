@@ -18,7 +18,7 @@ from sklearn.metrics import (
     f1_score, roc_auc_score, average_precision_score,
 )
 
-from agents.features import build_dataset, DROP_COLS
+from agents.features import build_dataset
 
 
 def main():

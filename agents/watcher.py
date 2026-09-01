@@ -15,7 +15,6 @@ notes -- it is not fabricated.
 """
 import hmac
 import hashlib
-import json
 
 from config import settings
 

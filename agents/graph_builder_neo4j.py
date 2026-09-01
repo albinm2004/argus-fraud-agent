@@ -79,8 +79,7 @@ def get_graph_features(txn_id) -> dict:
          count(DISTINCT shared_card) AS shared_card_count,
          count(DISTINCT shared_addr) AS shared_addr_count,
          collect(DISTINCT shared_card) + collect(DISTINCT shared_addr) AS neighbors
-    RETURN t.is_fraud AS found,
-           shared_card_count,
+    RETURN shared_card_count,
            shared_addr_count,
            size([n IN neighbors WHERE n.is_fraud]) AS neighbor_fraud_count,
            size(neighbors) AS neighbor_count

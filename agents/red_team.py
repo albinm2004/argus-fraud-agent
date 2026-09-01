@@ -22,6 +22,7 @@ import joblib
 import numpy as np
 
 from agents.features import PERTURBABLE_COLS
+from agents.perturbation import best_evasion
 
 _MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 _HARDENED_PATH = _MODELS_DIR / "pattern_analyst_hardened.joblib"
@@ -40,7 +41,21 @@ def _load():
 def evaluate_robustness(feature_row, n_candidates: int = 40, jitter: float = 0.35, seed: int = 42) -> dict:
     """Runs the same perturbation search as scripts/red_team_attack.py
     against a single transaction's feature row. Returns the original score,
-    the best evasion score found, and whether it flips the verdict."""
+    the best evasion score found, and whether it flips the verdict.
+
+    Was previously a hand-copied re-implementation of the jitter search
+    living right here in this function -- despite this module's own
+    docstring and agents/perturbation.py's docstring both claiming the
+    live agent "searches the same way" as the offline attack/hardening
+    scripts. That claim was only true by coincidence of copy-paste, not
+    by actually sharing code: a future edit to the jitter logic in one
+    place could silently drift out of sync with the other and make the
+    live per-transaction "robustness note" stop matching the methodology
+    documented in docs/adversarial_results.md. Fixed by calling the
+    actually-shared agents.perturbation.best_evasion() here -- verified
+    to produce identical pre/post scores on real held-out fraud rows
+    before and after this change (same algorithm, just no longer
+    duplicated)."""
     bundle = _load()
     model, feature_cols, threshold = bundle["model"], bundle["feature_cols"], bundle["threshold"]
     rng = np.random.default_rng(seed)
@@ -48,21 +63,11 @@ def evaluate_robustness(feature_row, n_candidates: int = 40, jitter: float = 0.3
     row = feature_row[feature_cols].values.astype(float)
     pre_score = float(model.predict_proba(row.reshape(1, -1))[:, 1][0])
 
-    perturbable_idx = [feature_cols.index(c) for c in PERTURBABLE_COLS if c in feature_cols]
-    batch = np.tile(row, (n_candidates, 1))
-    for idx in perturbable_idx:
-        base = batch[:, idx]
-        factors = rng.uniform(1 - jitter, 1 + jitter, size=n_candidates)
-        jittered = base * factors
-        jittered = np.where(np.abs(base) < 1e-6, rng.uniform(-1, 1, size=n_candidates), jittered)
-        batch[:, idx] = jittered
-
-    probs = model.predict_proba(batch)[:, 1]
-    post_score = float(probs.min())
+    _, post_score = best_evasion(model, row, feature_cols, PERTURBABLE_COLS, n_candidates, jitter, rng)
 
     return {
         "pre_attack_score": pre_score,
-        "post_attack_score": post_score,
+        "post_attack_score": float(post_score),
         "evaded": bool(pre_score >= threshold and post_score < threshold),
         "threshold": float(threshold),
     }

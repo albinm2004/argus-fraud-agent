@@ -128,7 +128,74 @@ def test_duplicate_delivery_is_acknowledged_without_reprocessing(client):
     assert second.status_code == 200
     data = second.json()
     assert data["duplicate"] is True
-    assert data["txn_id"] == 42424242
+    # txn_id in the response is Razorpay's raw payment id (a string) --
+    # see test_duplicate_delivery_uses_real_razorpay_id_not_just_numeric_demo_ids
+    # for why this can't be int(...)'d.
+    assert data["txn_id"] == "42424242"
+
+
+def test_duplicate_delivery_uses_real_razorpay_id_not_just_numeric_demo_ids(client):
+    """Regression test for a real bug: dedup used to key off int(payment
+    id), but a genuine Razorpay payment id (e.g. "pay_MnFHJ1n5AwvSxE") is
+    never a bare integer, so int() always raised and replay protection
+    silently never engaged for real traffic -- only for this test suite's
+    own numeric-string demo ids. This uses a realistic non-numeric id to
+    make sure dedup still works for it."""
+    body = _payload(txn_id=1)
+    body["payload"]["payment"]["entity"]["id"] = "pay_MnFHJ1n5AwvSxE"
+    raw = json.dumps(body).encode()
+    signature = _sign(raw)
+    headers = {"X-Razorpay-Signature": signature}
+
+    first = client.post("/webhooks/razorpay", content=raw, headers=headers)
+    assert first.status_code in (200, 202)
+    assert first.json().get("duplicate") is not True
+    assert first.json()["txn_id"] == "pay_MnFHJ1n5AwvSxE"
+
+    second = client.post("/webhooks/razorpay", content=raw, headers=headers)
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    assert second.json()["txn_id"] == "pay_MnFHJ1n5AwvSxE"
+
+
+def test_concurrent_duplicate_deliveries_only_process_once(client):
+    """Regression test for a real race condition: the dedup check ("is
+    this id already processed?") and the reservation (add it to the
+    processed set) used to be two separate, unlocked steps, so two
+    near-simultaneous deliveries of the same event -- which Razorpay's
+    own retry behavior can genuinely produce -- could both pass the
+    check before either finished the add, and both would get scored/
+    logged. Found by firing 10+ concurrent identical requests at the
+    endpoint with real threads and seeing all of them come back
+    non-duplicate instead of exactly one. Fixed with a lock around the
+    check-and-reserve step; this test fires real concurrent requests
+    (not just sequential calls) to make sure exactly one wins."""
+    import threading
+
+    body = _payload(txn_id=13131313)
+    raw = json.dumps(body).encode()
+    signature = _sign(raw)
+    headers = {"X-Razorpay-Signature": signature}
+
+    results = []
+    results_lock = threading.Lock()
+
+    def fire():
+        resp = client.post("/webhooks/razorpay", content=raw, headers=headers)
+        with results_lock:
+            results.append(resp.json().get("duplicate"))
+
+    threads = [threading.Thread(target=fire) for _ in range(15)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    non_duplicate_count = sum(1 for d in results if d is not True)
+    assert non_duplicate_count == 1, (
+        f"expected exactly 1 of 15 concurrent identical deliveries to be the "
+        f"non-duplicate winner, got {non_duplicate_count} -- dedup race reintroduced"
+    )
 
 
 @requires_artifacts
