@@ -60,6 +60,28 @@ demo's numeric stand-in" -- rather than just the happy path):
    keeping the int() parse only for the narrower job of indexing into
    the numeric-keyed demo feature store.
 
+Two more things deliberately left OUT of this build, called out here
+rather than silently missing:
+
+- Rate limiting: there is none. A production webhook endpoint sitting on
+  the open internet needs it (Razorpay's own retries are bounded and
+  well-behaved, but nothing stops a misconfigured client, a compromised
+  secret, or plain abuse from hammering this route -- signature
+  verification alone doesn't limit request volume). Out of scope here
+  because it needs a decision this project hasn't made (per-IP? per-key?
+  what limit, backed by what store across workers?) that would be guessed
+  at, not engineered, under this deadline. The honest fix is `slowapi` or
+  an API-gateway-level limiter in front of this route before any real
+  deployment, not a made-up threshold added last-minute to look complete.
+- Auth beyond the webhook signature: the ONLY authentication on this
+  route is Razorpay's own HMAC signature (verify_signature() above) --
+  there's no separate API key, IP allowlist, or mTLS. That's actually
+  correct for a Razorpay webhook specifically (the signature IS the
+  intended auth mechanism for this exact use case), but it means this
+  route is not a general-purpose authenticated API and shouldn't be
+  treated as one if it's ever reused for anything beyond receiving
+  Razorpay webhooks.
+
 Run:    PYTHONPATH=. uvicorn app.webhook_receiver:app --reload --port 8000
 Health: curl http://localhost:8000/health
 Tests:  tests/test_webhook_receiver.py (uses FastAPI's TestClient, no

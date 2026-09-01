@@ -14,7 +14,11 @@ networkx==3.4.2
 # ML — baseline + upgrade path
 scikit-learn==1.5.2
 joblib==1.4.2
-xgboost==2.1.1
+xgboost==3.2.0  # bumped from 2.1.1 -- the real dev/demo machine had 3.2.0 installed
+# (a full major version ahead of the old pin), which is what actually runs this
+# project day to day. Re-pickled models/pattern_analyst*.joblib under 3.2.0 and
+# verified bit-identical predict_proba on deterministic rows before/after --
+# no retraining, just re-serialized to match the version that's really in use.
 pandas==2.2.3
 numpy>=1.26,<2.3  # pin loose on purpose: numpy 1.26.4 exact hits a known
 # Windows/Python 3.13 longdouble OverflowError in numpy.core.getlimits when

@@ -25,11 +25,34 @@ _MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 _HARDENED_PATH = _MODELS_DIR / "pattern_analyst_hardened.joblib"
 _BASELINE_PATH = _MODELS_DIR / "pattern_analyst.joblib"
 _AUDIT_LOG_PATH = Path(__file__).resolve().parent.parent / "data" / "processed" / "audit_log.jsonl"
+_AUDIT_LOG_MAX_BYTES = 25 * 1024 * 1024  # 25MB -- rotate before a long demo day (or a real
+# deployment left running against live webhooks) grows this into one unbounded file. A quiet
+# gap in the original build: every investigate() call appends here forever with nothing to cap it.
 
 _bundle = None
 _explainer = None
 
 TOP_K_EVIDENCE = 5
+
+
+def _rotate_audit_log_if_needed():
+    """Size-based rotation: once the audit log crosses _AUDIT_LOG_MAX_BYTES,
+    rename it to a timestamped .jsonl file and let the next append start a
+    fresh one. Deliberately simple -- no external log-rotation library, no
+    compression, no retention-count cap -- this is a single-instance demo
+    audit trail, not a production logging pipeline, so a plain rename is
+    enough; a real multi-worker deployment would need a shared log store
+    (same caveat already documented for the webhook receiver's dedup set).
+    Rotation is best-effort: a failure here (e.g. a permissions issue)
+    should never block a verdict from being rendered or logged."""
+    try:
+        if _AUDIT_LOG_PATH.exists() and _AUDIT_LOG_PATH.stat().st_size >= _AUDIT_LOG_MAX_BYTES:
+            rotated = _AUDIT_LOG_PATH.with_name(
+                f"{_AUDIT_LOG_PATH.stem}.{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
+            )
+            _AUDIT_LOG_PATH.rename(rotated)
+    except OSError:
+        pass
 
 
 def _load():
@@ -101,6 +124,7 @@ def render_verdict(record: dict, txn_id=None) -> dict:
     }
 
     _AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _rotate_audit_log_if_needed()
     with open(_AUDIT_LOG_PATH, "a") as f:
         f.write(json.dumps(result) + "\n")
 

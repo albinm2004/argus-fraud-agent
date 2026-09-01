@@ -15,6 +15,15 @@ whichever pushes the predicted probability down the most. If that best
 perturbation drops the transaction below the operating threshold, the
 attack "evaded" it. The fraction that evades is the robustness gap.
 
+Uses agents.perturbation.perturb_batch for the actual jittering -- this
+used to be a hand-copied duplicate of that same logic here, which drifted
+from being true the moment either copy changed even though both modules'
+docstrings claimed to share it. Verified the two implementations were
+algorithmically identical (same jitter formula, same near-zero fallback)
+before switching, and re-ran this script after switching -- the numbers in
+docs/adversarial_results.md below are the post-refactor, actually-shared-code
+numbers, not stale ones from before the fix.
+
 Run (from repo root): PYTHONPATH=. python scripts/red_team_attack.py
 Writes docs/adversarial_results.md.
 """
@@ -25,6 +34,7 @@ import joblib
 import numpy as np
 
 from agents.features import build_dataset, PERTURBABLE_COLS
+from agents.perturbation import perturb_batch
 
 N_SAMPLES = 1500     # per class, for time budget
 N_CANDIDATES = 40    # perturbation trials per sample
@@ -32,28 +42,13 @@ JITTER = 0.35         # +/- relative jitter on perturbable features
 SEED = 42
 
 
-def perturb_batch(X_row, feature_cols, perturbable_idx, n_candidates, rng):
-    """Returns (n_candidates, n_features) matrix: n_candidates jittered copies of X_row."""
-    batch = np.tile(X_row, (n_candidates, 1)).astype(float)
-    for idx in perturbable_idx:
-        base = batch[:, idx]
-        factors = rng.uniform(1 - JITTER, 1 + JITTER, size=n_candidates)
-        jittered = base * factors
-        # Small additive fallback for zero/near-zero values, where a
-        # multiplicative jitter would do nothing.
-        jittered = np.where(np.abs(base) < 1e-6, rng.uniform(-1, 1, size=n_candidates), jittered)
-        batch[:, idx] = jittered
-    return batch
-
-
 def run_attack(model, X, y_true_label, feature_cols, threshold, rng, n_samples, label):
-    perturbable_idx = [feature_cols.index(c) for c in PERTURBABLE_COLS if c in feature_cols]
     idx_pool = X.index[: min(n_samples, len(X))] if len(X) <= n_samples else rng.choice(X.index, size=n_samples, replace=False)
 
     pre_scores, post_scores = [], []
     for i in idx_pool:
         row = X.loc[i].values
-        candidates = perturb_batch(row, feature_cols, perturbable_idx, N_CANDIDATES, rng)
+        candidates = perturb_batch(row, feature_cols, PERTURBABLE_COLS, N_CANDIDATES, JITTER, rng)
         probs = model.predict_proba(candidates)[:, 1]
         pre = model.predict_proba(row.reshape(1, -1))[:, 1][0]
         post = probs.min()  # the fraudster picks the best evasion found
