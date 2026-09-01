@@ -67,6 +67,7 @@ def test_health(client):
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+    assert "feature_store_loaded" in resp.json()
 
 
 def test_missing_signature_header_rejected(client):
@@ -87,9 +88,15 @@ def test_invalid_signature_rejected(client):
 
 
 def test_valid_signature_unknown_txn_returns_202(client):
-    """A genuinely live transaction (not in our demo dataset) should still
-    verify and normalize correctly -- it just can't be scored, and says
-    so honestly instead of faking a verdict."""
+    """A genuinely live transaction (not in our demo dataset, or not
+    scoreable because the demo dataset isn't even present on this
+    deployment -- see the feature-store try/except) should still verify
+    and normalize correctly. It just can't be scored, and says so
+    honestly with a 202 instead of faking a verdict or crashing with a
+    500 (the bug this test guards against: an earlier version called
+    _load_feature_store() unconditionally with no error handling, so on
+    a deployment without the IEEE-CIS dataset baked in, EVERY valid
+    webhook -- not just unknown ones -- would 500)."""
     body = _payload(txn_id=999999999999)  # not a real IEEE-CIS TransactionID
     raw = json.dumps(body).encode()
     signature = _sign(raw)
@@ -101,7 +108,27 @@ def test_valid_signature_unknown_txn_returns_202(client):
     assert resp.status_code == 202
     data = resp.json()
     assert data["scored"] is False
-    assert "no feature vector" in data["reason"]
+
+
+def test_duplicate_delivery_is_acknowledged_without_reprocessing(client):
+    """Razorpay (like most webhook providers) can redeliver the same
+    event -- e.g. on a retry after a slow response. A second delivery of
+    the identical signed payload should be acknowledged (200) without
+    being scored/logged again."""
+    body = _payload(txn_id=42424242)
+    raw = json.dumps(body).encode()
+    signature = _sign(raw)
+    headers = {"X-Razorpay-Signature": signature}
+
+    first = client.post("/webhooks/razorpay", content=raw, headers=headers)
+    assert first.status_code in (200, 202)
+    assert first.json().get("duplicate") is not True
+
+    second = client.post("/webhooks/razorpay", content=raw, headers=headers)
+    assert second.status_code == 200
+    data = second.json()
+    assert data["duplicate"] is True
+    assert data["txn_id"] == 42424242
 
 
 @requires_artifacts
