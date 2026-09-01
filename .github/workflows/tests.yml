@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: PYTHONPATH=. python -m pytest tests/ -v
+        # Note: the IEEE-CIS dataset (data/raw/) and the built entity
+        # graph (data/processed/) are gitignored -- too large to commit
+        # and not something CI downloads. Tests that need them
+        # (tests/test_pipeline.py, and the two tests/test_webhook_receiver.py
+        # cases that score a real transaction) skip themselves cleanly via
+        # pytest.mark.skipif rather than failing -- the trained model files
+        # under models/ ARE committed, small enough to check in directly,
+        # so any test that only needs the model (not the raw dataset) runs
+        # for real here, not just locally.
