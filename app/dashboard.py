@@ -1,8 +1,16 @@
-"""Argus — Streamlit demo surface.
+"""Argus -- Streamlit demo surface.
 
 Shows a live-looking feed of held-out transactions with their verdicts,
 and the full evidence chain (SHAP attribution + graph signal) behind any
 one of them. This is what the 5-minute pitch video points the camera at.
+
+Visual design follows a status/diverging color convention rather than
+default Streamlit styling: verdict badges use a fixed status palette
+(never color alone -- every badge and bar carries a text label too), and
+per-feature evidence bars use a diverging blue<->red scale (blue =
+lowered risk, red = raised risk) anchored at a center zero-line, which is
+the correct chart form for a signed contribution value, not an
+arbitrary-origin bar chart.
 
 Run: streamlit run app/dashboard.py
 """
@@ -20,9 +28,152 @@ from agents.pattern_analyst import score_transaction
 from agents.verdict import render_verdict
 from agents.graph_builder import get_graph_features
 
-st.set_page_config(page_title="Argus — Fraud Investigation", layout="wide")
+st.set_page_config(page_title="Argus — Fraud Investigation", page_icon="🛡️", layout="wide")
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+
+# -- Palette (status + diverging jobs only -- see docs/architecture.md for
+# the pipeline diagram this dashboard visualizes one slice of) --------------
+STATUS = {
+    "block": {"hex": "#d03b3b", "label": "BLOCK", "bg": "#fbe9e9"},
+    "flag": {"hex": "#fab219", "label": "FLAG", "bg": "#fef6e6"},
+    "allow": {"hex": "#0ca30c", "label": "ALLOW", "bg": "#e9f7e9"},
+}
+DIVERGE_UP = "#d03b3b"     # raised risk
+DIVERGE_DOWN = "#2a78d6"   # lowered risk
+INK_MUTED = "#898781"
+INK_SECONDARY = "#52514e"
+
+CUSTOM_CSS = f"""
+<style>
+.argus-hero {{
+    display: flex; align-items: center; gap: 14px;
+    padding: 4px 0 18px 0; border-bottom: 1px solid #e1e0d9; margin-bottom: 18px;
+}}
+.argus-hero .shield {{ font-size: 2.2rem; line-height: 1; }}
+.argus-hero .title {{ font-size: 1.6rem; font-weight: 700; margin: 0; }}
+.argus-hero .tagline {{ color: {INK_SECONDARY}; font-size: 0.92rem; margin: 0; }}
+
+.verdict-badge {{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 12px; border-radius: 999px; font-weight: 700;
+    font-size: 0.85rem; letter-spacing: 0.02em;
+}}
+.verdict-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
+
+.score-scale {{ position: relative; height: 34px; margin: 10px 0 4px 0; }}
+.score-scale .track {{
+    position: absolute; top: 14px; left: 0; right: 0; height: 6px;
+    border-radius: 3px; background: #e1e0d9;
+}}
+.score-scale .fill {{
+    position: absolute; top: 14px; left: 0; height: 6px; border-radius: 3px;
+}}
+.score-scale .threshold-tick {{
+    position: absolute; top: 6px; width: 2px; height: 22px; background: {INK_SECONDARY};
+}}
+.score-scale .marker {{
+    position: absolute; top: 8px; width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid white; box-shadow: 0 0 0 1px rgba(11,11,11,0.15); transform: translateX(-50%);
+}}
+.score-scale-labels {{ display: flex; justify-content: space-between; font-size: 0.72rem; color: {INK_MUTED}; }}
+
+.evidence-row {{ margin: 10px 0; }}
+.evidence-text {{ font-size: 0.88rem; margin-bottom: 3px; }}
+.evidence-bar-track {{
+    position: relative; height: 10px; background: #f2f1ed; border-radius: 3px; overflow: visible;
+}}
+.evidence-bar-center {{ position: absolute; left: 50%; top: -2px; width: 1px; height: 14px; background: #c3c2b7; }}
+.evidence-bar-fill {{ position: absolute; top: 0; height: 10px; border-radius: 3px; }}
+
+.chip-row {{ display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 2px 0; }}
+.chip {{
+    background: #f2f1ed; border-radius: 6px; padding: 4px 10px;
+    font-size: 0.8rem; color: {INK_SECONDARY};
+}}
+.chip b {{ color: #0b0b0b; }}
+
+.pipeline-strip {{ display: flex; align-items: center; gap: 4px; margin: 4px 0 14px 0; flex-wrap: wrap; }}
+.pipeline-node {{
+    font-size: 0.72rem; padding: 3px 9px; border-radius: 5px; background: #f2f1ed;
+    color: {INK_MUTED}; border: 1px solid #e1e0d9;
+}}
+.pipeline-node.active {{ background: #e8f0fe; color: #184f95; border-color: #2a78d6; font-weight: 600; }}
+.pipeline-arrow {{ color: {INK_MUTED}; font-size: 0.75rem; }}
+</style>
+"""
+
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+st.markdown(
+    '<div class="argus-hero"><span class="shield">🛡️</span>'
+    '<div><p class="title">Argus</p>'
+    '<p class="tagline">Multi-agent fraud investigation — Razorpay AI Buildathon, Track 2 (AI Risk Manager)</p>'
+    '</div></div>',
+    unsafe_allow_html=True,
+)
+
+
+def verdict_badge(verdict: str) -> str:
+    s = STATUS.get(verdict, STATUS["allow"])
+    return (f'<span class="verdict-badge" style="background:{s["bg"]}; color:{s["hex"]}">'
+            f'<span class="verdict-dot" style="background:{s["hex"]}"></span>{s["label"]}</span>')
+
+
+def score_scale(score: float, threshold: float, verdict: str) -> str:
+    color = STATUS.get(verdict, STATUS["allow"])["hex"]
+    score_pct = max(0.0, min(1.0, score)) * 100
+    thresh_pct = max(0.0, min(1.0, threshold)) * 100
+    return f"""
+    <div class="score-scale">
+        <div class="track"></div>
+        <div class="fill" style="width:{score_pct:.1f}%; background:{color};"></div>
+        <div class="threshold-tick" style="left:{thresh_pct:.1f}%;" title="Decision threshold {threshold:.3f}"></div>
+        <div class="marker" style="left:{score_pct:.1f}%; background:{color};"></div>
+    </div>
+    <div class="score-scale-labels"><span>0.0</span><span>score {score:.3f} · threshold {threshold:.3f}</span><span>1.0</span></div>
+    """
+
+
+def evidence_bar_row(text: str) -> str:
+    """text looks like '<description> — raised/lowered risk score by <magnitude>'.
+    Parses direction + magnitude out to size and color a diverging bar; falls
+    back to a plain row (no bar) if the format doesn't match, e.g. the
+    graph-signal evidence line, which carries no numeric magnitude."""
+    raised = "raised risk" in text
+    lowered = "lowered risk" in text
+    if not (raised or lowered):
+        return f'<div class="evidence-row"><div class="evidence-text">{text}</div></div>'
+    try:
+        magnitude = float(text.rsplit("by", 1)[1].strip())
+    except (ValueError, IndexError):
+        magnitude = 0.3
+    pct = min(48.0, magnitude * 60)  # visual scale, capped so bars stay inside the track
+    color = DIVERGE_UP if raised else DIVERGE_DOWN
+    left = 50.0 if raised else 50.0 - pct
+    width = pct
+    return f"""
+    <div class="evidence-row">
+        <div class="evidence-text">{text}</div>
+        <div class="evidence-bar-track">
+            <div class="evidence-bar-center"></div>
+            <div class="evidence-bar-fill" style="left:{left:.1f}%; width:{width:.1f}%; background:{color};"></div>
+        </div>
+    </div>
+    """
+
+
+def pipeline_strip(ran_red_team: bool) -> str:
+    nodes = ["Watcher", "Graph Builder", "Pattern Analyst"]
+    nodes.append("Red-Team" if ran_red_team else "Red-Team (skipped)")
+    nodes.append("Verdict")
+    active = [True, True, True, ran_red_team, True]
+    parts = []
+    for i, (name, is_active) in enumerate(zip(nodes, active)):
+        cls = "pipeline-node active" if is_active else "pipeline-node"
+        parts.append(f'<span class="{cls}">{name}</span>')
+        if i < len(nodes) - 1:
+            parts.append('<span class="pipeline-arrow">→</span>')
+    return f'<div class="pipeline-strip">{"".join(parts)}</div>'
 
 
 @st.cache_data(show_spinner="Loading held-out transactions...")
@@ -45,9 +196,6 @@ def load_headline_metrics():
         return json.loads(path.read_text())
     return None
 
-
-st.title("Argus")
-st.caption("Fraud investigation agent — Razorpay AI Buildathon, Track 2 (AI Risk Manager)")
 
 metrics = load_headline_metrics()
 if metrics:
@@ -88,7 +236,11 @@ with left:
     if verdict_filter != "all":
         feed_df = feed_df[feed_df["Verdict"] == verdict_filter]
 
-    st.dataframe(feed_df, use_container_width=True, height=420, hide_index=True)
+    def _row_style(row):
+        color = "#fbe9e9" if row["Verdict"] == "flag/block" else "#e9f7e9"
+        return [f"background-color: {color}" if col == "Verdict" else "" for col in row.index]
+
+    st.dataframe(feed_df.style.apply(_row_style, axis=1), width="stretch", height=420, hide_index=True)
     selected_id = st.selectbox("Inspect a transaction", feed_df["TransactionID"].tolist())
 
 with right:
@@ -97,20 +249,30 @@ with right:
         row = sample[sample["TransactionID"] == selected_id].iloc[0]
         result = render_verdict(row, txn_id=str(selected_id))
 
-        verdict_color = {"block": "red", "flag": "orange", "allow": "green"}[result["verdict"]]
-        st.markdown(f"**Verdict: :{verdict_color}[{result['verdict'].upper()}]**  "
-                    f"(score {result['score']:.3f}, threshold {result['threshold']:.3f})")
+        st.markdown(verdict_badge(result["verdict"]), unsafe_allow_html=True)
         actual = "FRAUD" if row["isFraud"] == 1 else "legit"
-        st.caption(f"Ground truth: {actual}")
+        st.caption(f"Ground truth: {actual}  ·  txn {selected_id}")
+        st.markdown(score_scale(result["score"], result["threshold"], result["verdict"]), unsafe_allow_html=True)
+        st.markdown(pipeline_strip(ran_red_team=False), unsafe_allow_html=True)
 
         st.markdown("**Why:**")
         for e in result["evidence"]:
-            st.markdown(f"- {e}")
+            st.markdown(evidence_bar_row(e), unsafe_allow_html=True)
+        st.caption("Red bars raised the risk score, blue bars lowered it — bar length is the magnitude of that "
+                   "feature's SHAP contribution (XGBoost native `pred_contribs`, not the `shap` package).")
 
         st.markdown("**Graph signal:**")
         gf = get_graph_features(int(selected_id))
         if gf.get("found"):
-            st.json(gf)
+            fraud_key = "other_fraud_in_component" if "other_fraud_in_component" in gf else "neighbor_fraud_count"
+            chips = [
+                f'<span class="chip">Source: <b>{gf.get("source", "unknown")}</b></span>',
+                f'<span class="chip">Shared card: <b>{gf.get("shared_card_count", 0)}</b></span>',
+                f'<span class="chip">Shared address: <b>{gf.get("shared_addr_count", 0)}</b></span>',
+            ]
+            if fraud_key in gf:
+                chips.append(f'<span class="chip">Fraud nearby: <b>{gf[fraud_key]}</b></span>')
+            st.markdown(f'<div class="chip-row">{"".join(chips)}</div>', unsafe_allow_html=True)
         else:
             st.caption("Transaction not found in the loaded graph.")
     else:
