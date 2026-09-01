@@ -1,5 +1,9 @@
 # Argus — Fraud Investigation Agent
 
+[![Tests](https://github.com/albinm2004/argus-fraud-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/albinm2004/argus-fraud-agent/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](requirements.txt)
+
 Built for the **Razorpay AI Buildathon**, Track 2 (AI Risk Manager).
 
 Argus is a multi-agent fraud detector that treats every transaction like a case
@@ -61,14 +65,26 @@ Full diagram and rationale: [`docs/architecture.md`](docs/architecture.md).
    Pattern Analyst, writes `models/pattern_analyst.joblib` and `docs/results.md`.
 5. `PYTHONPATH=. python scripts/red_team_attack.py` — runs the adversarial
    evasion sweep, writes `docs/adversarial_results.md`.
-6. Install PyTorch + PyTorch Geometric separately (platform-specific —
+6. `PYTHONPATH=. python scripts/adversarial_harden.py` — retrains on
+   adversarially-augmented data, writes `models/pattern_analyst_hardened.joblib`
+   and `docs/hardening_results.md`. **This step was missing from these
+   instructions until it was caught during a project review** — every
+   agent that scores a transaction prefers the hardened model when it's
+   present (`agents/pattern_analyst.py`), so skipping this step silently
+   means a fresh reproduction runs the weaker, un-hardened model without
+   any error telling you so. If you've cloned this repo, `models/` already
+   has the hardened model committed and you can skip straight to step 9.
+7. `PYTHONPATH=. python -c "from agents.graph_builder import build_and_save; build_and_save()"`
+   — builds the local entity graph used for ring detection, writes
+   `data/processed/entity_graph.gpickle`.
+8. Install PyTorch + PyTorch Geometric separately (platform-specific —
    see pytorch.org/get-started/locally and the PyTorch Geometric install
    docs) only when the GNN upgrade is in scope.
-7. `PYTHONPATH=. python scripts/demo_replay.py` — the quickest way to see
+9. `PYTHONPATH=. python scripts/demo_replay.py` — the quickest way to see
    the whole system work: signs a real Razorpay-shaped webhook, verifies
    it, runs it through the live LangGraph pipeline against a few held-out
    transactions, and prints the verdict + evidence chain for each.
-8. `PYTHONPATH=. uvicorn app.webhook_receiver:app --reload --port 8000` —
+10. `PYTHONPATH=. uvicorn app.webhook_receiver:app --reload --port 8000` —
    runs Argus as an actual HTTP service you could point Razorpay's real
    webhook dashboard at (via ngrok for local testing). `GET /health` for
    a liveness check; `POST /webhooks/razorpay` verifies the signature,

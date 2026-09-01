@@ -2,12 +2,35 @@
 
 ## Pipeline
 
+The diagram below matches the actual compiled LangGraph `StateGraph` in
+`agents/pipeline.py` -- not an aspirational sketch. Red-Team is a
+conditional branch (`run_red_team` flag), not always in the critical
+path: the live webhook receiver runs without it (favors latency), while
+`scripts/demo_replay.py` and manual investigation runs enable it.
+
+```mermaid
+flowchart LR
+    W["Watcher\nHMAC verify + normalize"] -.->|"raw webhook\n(see scope note)"| GB
+    GB["Graph Builder\nNeo4j / networkx fallback"] --> PA["Pattern Analyst\nhardened XGBoost"]
+    PA --> ROUTE{run_red_team?}
+    ROUTE -->|yes| RT["Adversarial Red-Team\nevasion probe"]
+    ROUTE -->|no| V
+    RT --> V["Verdict + Audit\nSHAP evidence, block/flag/allow"]
+    V --> LOG[("audit_log.jsonl")]
+
+    style W fill:#e8f0fe,stroke:#4285f4
+    style GB fill:#e8f0fe,stroke:#4285f4
+    style PA fill:#e8f0fe,stroke:#4285f4
+    style RT fill:#fff3e0,stroke:#f9a825
+    style V fill:#e8f0fe,stroke:#4285f4
 ```
-Watcher --> Graph Builder --> Pattern Analyst --> Adversarial Red-Team --> Verdict + Audit
-                                     ^                      |
-                                     +----------------------+
-                                     (evasion found -> retrain/re-score)
-```
+
+The dotted Watcher edge is deliberate: Watcher's real job (signature
+verification + payload normalization, in `app/webhook_receiver.py`)
+stops at Razorpay's raw fields. Bridging that to the engineered feature
+vector `Graph Builder`/`Pattern Analyst` actually consume needs a
+real-time feature store this build doesn't have -- see the scope note
+below and in `agents/pipeline.py`.
 
 ## Agents
 
