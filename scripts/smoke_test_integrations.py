@@ -23,13 +23,20 @@ def check_razorpay():
 
 
 def check_neo4j():
-    from agents.graph_builder_neo4j import check_connection
-    if check_connection():
-        print("  [OK] Neo4j AuraDB connection works.")
-        return True
-    print("  [FAIL] Neo4j: could not connect. Check .env and that the Aura instance is running "
-          "(free instances pause after inactivity and need a minute to wake up).")
-    return False
+    from agents.graph_builder_neo4j import check_connection, close_driver
+    try:
+        if check_connection():
+            print("  [OK] Neo4j AuraDB connection works.")
+            return True
+        print("  [FAIL] Neo4j: could not connect. Check .env and that the Aura instance is running "
+              "(free instances pause after inactivity and need a minute to wake up).")
+        return False
+    finally:
+        # This script is short-lived -- close the driver explicitly so the
+        # interpreter doesn't tear its socket down mid-flight on exit, which
+        # prints a "Failed to write data to connection ..." warning that
+        # looks like a real failure but isn't. See close_driver()'s docstring.
+        close_driver()
 
 
 if __name__ == "__main__":

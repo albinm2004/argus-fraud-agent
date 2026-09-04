@@ -13,7 +13,7 @@ import sys
 import time
 
 from agents.features import load_raw
-from agents.graph_builder_neo4j import check_connection, write_transactions_batch, get_driver
+from agents.graph_builder_neo4j import check_connection, write_transactions_batch, get_driver, close_driver
 
 BATCH_SIZE = 1000
 
@@ -23,6 +23,7 @@ def main():
     if not check_connection():
         print("Could not connect to Neo4j. Check .env (NEO4J_URI/USERNAME/PASSWORD) "
               "and that this machine has real internet access.")
+        close_driver()  # opened by check_connection() above -- close it before exiting
         sys.exit(1)
     print("Connected.")
 
@@ -59,6 +60,12 @@ def main():
         ).single()
         print(f"Graph now holds: {counts['txns']:,} transactions, "
               f"{counts['cards']:,} cards, {counts['addrs']:,} addresses.")
+
+    # Short-lived script -- close explicitly so the interpreter doesn't tear
+    # the driver's socket down mid-flight on exit (see close_driver()'s
+    # docstring in agents/graph_builder_neo4j.py for why that prints a
+    # scary-looking "Failed to write data to connection ..." warning).
+    close_driver()
 
 
 if __name__ == "__main__":

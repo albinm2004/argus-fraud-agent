@@ -29,6 +29,24 @@ def get_driver():
     return _driver
 
 
+def close_driver():
+    """Closes the module-level driver, if one was ever opened. A long-running
+    process (the webhook receiver, the dashboard) should NOT call this -- it
+    wants the driver alive for the process's whole lifetime, and get_driver()
+    will transparently reopen one if needed anyway. This exists for short-lived
+    CLI scripts (smoke_test_integrations.py, load_graph_to_neo4j.py): without
+    an explicit close, the driver's background connection is still open when
+    the interpreter exits, and Python tears its socket down mid-flight instead
+    of via the driver's normal GOODBYE handshake -- harmless to the data, but
+    it prints a "Failed to write data to connection ..." warning that looks
+    like a real failure. Calling this at the end of a script's main() avoids
+    the scary-looking noise."""
+    global _driver
+    if _driver is not None:
+        _driver.close()
+        _driver = None
+
+
 @contextmanager
 def session():
     driver = get_driver()
