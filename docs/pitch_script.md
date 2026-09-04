@@ -48,7 +48,7 @@ training run.)*
 Run, on camera:
 
 ```
-PYTHONPATH=. python scripts/demo_replay.py --n-fraud 2 --n-legit 1 --seed <pick one that lands a block and a miss>
+PYTHONPATH=. python scripts/demo_replay.py --n-fraud 2 --n-legit 1 --seed 3
 ```
 
 Narrate as it runs:
@@ -124,8 +124,14 @@ solve, written down rather than hidden. That's Argus."
 - Confirm `python scripts/smoke_test_integrations.py` shows both Razorpay
   and Neo4j OK before recording, so a live-integration claim on camera is
   backed by a fresh check.
-- Pick a `--seed` for `demo_replay.py` ahead of time that reliably lands
-  one `block` and one `MISS` — reproducible, not "hope it works live."
+- Seed already picked and verified: `--seed 3` with the default
+  `--n-fraud 2 --n-legit 1` reliably gives txn 3565909 (FRAUD -> BLOCK,
+  correct), txn 3537527 (FRAUD -> ALLOW, an honest MISS — score 0.558
+  vs threshold 0.698), and txn 3515192 (legit -> ALLOW, correct, and its
+  evidence panel shows a real graph signal: linked to 11 other
+  transactions via shared card). One clean take, all three demo beats
+  covered — run it once yourself first so the pacing feels natural on
+  camera, then record.
 - Keep `docs/results.md`, `docs/hardening_results.md`, and
   `docs/architecture.md` open in tabs in case you want to point the
   camera at a specific number instead of just saying it.
