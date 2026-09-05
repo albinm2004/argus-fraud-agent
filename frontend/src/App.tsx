@@ -1,98 +1,127 @@
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { useDashboardData } from "./data/useDashboardData";
-import { HeroMetrics } from "./components/HeroMetrics";
-import { TransactionFeed } from "./components/TransactionFeed";
-import { EvidencePanel } from "./components/EvidencePanel";
-import { ArchitectureView } from "./components/ArchitectureView";
-import { RobustnessPanel } from "./components/RobustnessPanel";
-
-type Tab = "overview" | "architecture" | "robustness";
+import { LogoLockup } from "./components/Logo";
+import { HeroHook } from "./components/HeroHook";
+import { FeaturedWalkthrough } from "./components/FeaturedWalkthrough";
+import { AggregateProof } from "./components/AggregateProof";
+import { AdversarialClimax } from "./components/AdversarialClimax";
+import { ArchitecturePipeline } from "./components/ArchitecturePipeline";
+import { HonestScope } from "./components/HonestScope";
 
 export default function App() {
   const { data, loading, error } = useDashboardData();
-  const [tab, setTab] = useState<Tab>("overview");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const selected = useMemo(
-    () => data?.transactions.find((t) => t.id === selectedId) ?? null,
-    [data, selectedId],
-  );
+  // Default featured transaction: 3464462 (Dramatic 82% fraud cluster case)
+  const [selectedId, setSelectedId] = useState<number>(3464462);
+
+  const selectedTxn = useMemo(() => {
+    if (!data || !data.transactions.length) return null;
+    return data.transactions.find((t) => t.id === selectedId) ?? data.transactions[0];
+  }, [data, selectedId]);
 
   return (
-    <div className="argus-app">
-      <div className="argus-hero">
-        <div className="shield">🛡️</div>
-        <div>
-          <p className="title">Argus</p>
-          <p className="tagline">
-            Multi-agent fraud investigation &mdash; Razorpay AI Buildathon, Track 2 (AI Risk
-            Manager)
-          </p>
+    <div className="showcase-root">
+      {/* Sticky Top Navigation Bar */}
+      <header className="top-navbar">
+        <div className="nav-brand-group">
+          <LogoLockup />
         </div>
-        {data && (
-          <div className="meta">
-            {data.n_sample} transactions &middot; generated {new Date(data.generated_at).toLocaleString()}
+
+        <nav className="nav-links">
+          <a href="#hook" className="nav-link-btn">
+            Hook
+          </a>
+          <a href="#walkthrough" className="nav-link-btn">
+            Proof by Example
+          </a>
+          <a href="#metrics" className="nav-link-btn">
+            Aggregate Proof
+          </a>
+          <a href="#adversarial" className="nav-link-btn">
+            Adversarial Climax
+          </a>
+          <a href="#architecture" className="nav-link-btn">
+            5-Agent Architecture
+          </a>
+          <a href="#scope" className="nav-link-btn">
+            Engineering Scope
+          </a>
+        </nav>
+
+        <div className="topbar-meta-badge">
+          <span className="pulse-dot" />
+          <span>300 Real Transactions Scored</span>
+        </div>
+      </header>
+
+      {/* Main Narrative Container */}
+      <main className="main-container">
+        {loading && (
+          <div className="state-msg">
+            <div className="pulse-dot" style={{ display: "inline-block", marginRight: 8 }} />
+            Loading real pipeline outputs from <code>dashboard.json</code>&hellip;
           </div>
         )}
-      </div>
 
-      {loading && <div className="state-msg">Loading pipeline output&hellip;</div>}
-      {error && (
-        <div className="state-msg">
-          Couldn&apos;t load dashboard.json ({error}). Run{" "}
-          <code>python scripts/export_dashboard_data.py</code> from the repo root first.
-        </div>
-      )}
-
-      {data && (
-        <>
-          <div className="argus-tabs">
-            <button
-              className={`argus-tab ${tab === "overview" ? "active" : ""}`}
-              onClick={() => setTab("overview")}
-            >
-              Overview
-            </button>
-            <button
-              className={`argus-tab ${tab === "architecture" ? "active" : ""}`}
-              onClick={() => setTab("architecture")}
-            >
-              Architecture
-            </button>
-            <button
-              className={`argus-tab ${tab === "robustness" ? "active" : ""}`}
-              onClick={() => setTab("robustness")}
-            >
-              Adversarial robustness
-            </button>
+        {error && (
+          <div className="state-msg" style={{ color: "var(--status-block)" }}>
+            Error loading pipeline dataset ({error}). Ensure <code>frontend/public/data/dashboard.json</code> exists.
           </div>
+        )}
 
-          {tab === "overview" && (
-            <>
-              {data.metrics && <HeroMetrics metrics={data.metrics} />}
-              <div className="split-view">
-                <TransactionFeed
-                  transactions={data.transactions}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                />
-                <EvidencePanel txn={selected} />
+        {data && selectedTxn && (
+          <>
+            {/* 1. Above-the-fold Hook */}
+            <HeroHook
+              featuredTxn={selectedTxn}
+              onSelectTxn={(id) => setSelectedId(id)}
+            />
+
+            {/* 2. Proof by Example (Featured Walkthrough + Expandable Feed) */}
+            <FeaturedWalkthrough
+              transactions={data.transactions}
+              selectedTxn={selectedTxn}
+              onSelectTxn={(id) => setSelectedId(id)}
+            />
+
+            {/* 3. Aggregate Proof (Metrics with Plain-Language Consequences) */}
+            {data.metrics && (
+              <AggregateProof
+                metrics={data.metrics}
+                transactions={data.transactions}
+              />
+            )}
+
+            {/* 4. Adversarial Climax (The Differentiator) */}
+            {data.metrics && (
+              <AdversarialClimax
+                metrics={data.metrics}
+                transactions={data.transactions}
+              />
+            )}
+
+            {/* 5. 5-Agent Architecture (15-Second Scannable + Deep Specs) */}
+            <ArchitecturePipeline />
+
+            {/* 6. Honest Engineering Scope & Limitations */}
+            <HonestScope />
+
+            {/* Showcase Footer */}
+            <footer className="showcase-footer">
+              <div>
+                <strong>Argus Fraud Investigation Pipeline</strong> &middot; Built for Razorpay AI Buildathon (Track 2: Autonomous Agents)
               </div>
-            </>
-          )}
-
-          {tab === "architecture" && <ArchitectureView />}
-
-          {tab === "robustness" && data.metrics && <RobustnessPanel metrics={data.metrics} />}
-        </>
-      )}
-
-      <div className="argus-footer">
-        Argus &mdash; built for the Razorpay AI Buildathon. Every number above comes from the real
-        pipeline (agents/verdict.py, agents/graph_builder.py, agents/red_team.py), precomputed via
-        scripts/export_dashboard_data.py rather than served live &mdash; see the project README for
-        why. Known limitations tracked honestly there too.
-      </div>
+              <div className="footer-links">
+                <a href="#hook">Back to top ↑</a>
+                <span>&middot;</span>
+                <span>Dataset: IEEE-CIS + Neo4j AuraDB</span>
+                <span>&middot;</span>
+                <span>Model: XGBoost + Adversarial Retraining</span>
+              </div>
+            </footer>
+          </>
+        )}
+      </main>
     </div>
   );
 }
