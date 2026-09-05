@@ -14,7 +14,7 @@
   
   --ink: #f5f3fa;
   --ink-secondary: #a9a3bf;
-  --ink-muted: #736b8e;
+  --ink-muted: #9891ac;
   
   /* Status Colors */
   --status-block: #ef4444;
@@ -64,8 +64,8 @@
   --top-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
   /* Chart primitives (SVG axes/gridlines can't use `color`, so these are explicit) */
-  --grid: var(--hairline-subtle);
-  --axis: var(--hairline-strong);
+  --grid: var(--hairline-strong);
+  --axis: #5b5178;
 }
 
 * {

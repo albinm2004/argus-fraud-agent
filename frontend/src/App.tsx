@@ -19,6 +19,18 @@ export default function App() {
     return data.transactions.find((t) => t.id === selectedId) ?? data.transactions[0];
   }, [data, selectedId]);
 
+  // Picking a transaction from anywhere on the page (the 300-row feed, an
+  // archetype pill, etc.) should jump back up to the walkthrough so the
+  // updated step-by-step story is immediately visible, not just updated
+  // off-screen above wherever the visitor happens to be scrolled to.
+  const handleSelectTxn = (id: number) => {
+    setSelectedId(id);
+    const el = document.getElementById("walkthrough");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <div className="showcase-root">
       {/* Sticky Top Navigation Bar */}
@@ -74,14 +86,14 @@ export default function App() {
             {/* 1. Above-the-fold Hook */}
             <HeroHook
               featuredTxn={selectedTxn}
-              onSelectTxn={(id) => setSelectedId(id)}
+              onSelectTxn={handleSelectTxn}
             />
 
             {/* 2. Proof by Example (Featured Walkthrough + Expandable Feed) */}
             <FeaturedWalkthrough
               transactions={data.transactions}
               selectedTxn={selectedTxn}
-              onSelectTxn={(id) => setSelectedId(id)}
+              onSelectTxn={handleSelectTxn}
             />
 
             {/* 3. Aggregate Proof (Metrics with Plain-Language Consequences) */}

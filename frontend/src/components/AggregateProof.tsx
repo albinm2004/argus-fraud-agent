@@ -114,7 +114,7 @@ export function AggregateProof({
       </div>
 
       {/* Visual Analytics Side-by-Side */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="charts-side-by-side">
         <ScoreDistribution transactions={transactions} />
         <EvidenceDrivers transactions={transactions} />
       </div>
