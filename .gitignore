@@ -24,3 +24,8 @@ data/processed/*
 .DS_Store
 .vscode/
 .idea/
+
+# Frontend (React) build artifacts -- installed/generated, not source
+frontend/node_modules/
+frontend/dist/
+frontend/dist_bak_*/
